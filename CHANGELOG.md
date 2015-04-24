@@ -19,6 +19,14 @@
   * Changed `message` for `summary`. Always present, and should provide a quick description of the type of error encountered. For example: "Error loading payload data"
   * Semantically changed `errors` to always have the details of one or many errors that have occurred. For example: "Unknown key received: :foobar while loading $.payload.user"
   * Note: if you are an application that used and tested against the previous `message` field you will need to adjust your tests to check for the values in the `summary` field and or the `errors` contents. But it will now be a much more consistent experience that will allow API clients to notify of the exact errors and details to their clients.
+* Added `display_name` DSL to `ResourceDefinition`
+  * It is a purely informational field, mostly to be used by consumers of the generated docs
+  * It defaults to the class name (stripping any of the prefix modules)
+* Revamped document generation to output a more compact format:
+    * 1 file per api version: including info, resources, schemas and traits.
+    * 1 single index file with global info plus just a list of version names
+    * new task currently usable through `bundle exec rake praxis:docs:experiments`
+      * NOTE: leaves the current doc generation tasks and code intact (until the doc browser is switched to use this)
 
 ## 0.16.1
 

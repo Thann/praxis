@@ -67,7 +67,7 @@ module Praxis
       unless ApiDefinition.instance.traits.has_key? trait_name
         raise Exceptions::InvalidTrait.new("Trait #{trait_name} not found in the system")
       end
-      
+
       trait = ApiDefinition.instance.traits.fetch(trait_name)
       trait.apply!(self)
       traits << trait_name
@@ -182,18 +182,22 @@ module Praxis
         hash[:description] = description
         hash[:name] = name
         hash[:metadata] = metadata
-        # FIXME: change to :routes along with api browser
-        hash[:urls] = routes.collect(&:describe)
         hash[:headers] = headers.describe if headers
         if params
-          hash[:params] = params_description
+          params_example = params.example;
+          hash[:params] = params_description(example: params_example)
         end
-        hash[:payload] = payload.describe if payload
+        if payload
+          payload_example = payload.example;
+          hash[:payload] = payload.describe(example: payload_example)
+        end
         hash[:responses] = responses.inject({}) do |memo, (response_name, response)|
           memo[response.name] = response.describe
           memo
         end
         hash[:traits] = traits if traits.any?
+        # FIXME: change to :routes along with api browser
+        hash[:urls] = routes.collect {|route| url_description(route: route, params_example: params_example) }.compact
 
         self.class.doc_decorations.each do |callback|
           callback.call(self, hash)
@@ -201,7 +205,31 @@ module Praxis
       end
     end
 
-    def params_description
+    def url_description(route:, params_example:)# TODO: what context to use?, context: [r.id])
+      return nil unless params_example
+
+      example_hash = params_example.dump
+      path_param_keys = route.path.named_captures.keys.collect(&:to_sym)
+      query_param_keys = self.params.attributes.keys - path_param_keys
+      required_query_param_keys = query_param_keys.each_with_object([]) do |p, array|
+        array << p if self.params.attributes[p].options[:required]
+      end
+
+      path_params = example_hash.select{|k,v| path_param_keys.include? k }
+      # Let's generate the example only using required params, to avoid mixing incompatible parameters
+      query_params = example_hash.select{|k,v| required_query_param_keys.include? k }
+      # TODO: should we URL encode here or not?...or even, should we just provde the raw attributes so that
+      # the clients of the docs can more easily recreate the request examples in different formats/languages...?
+      query_string = query_params.collect {|(name, value)| "#{name.to_s}=#{value.to_s}"}.join('&')
+      url = route.path.expand(path_params)
+      url = [url,query_string].join('?') unless query_string.empty?
+
+      route_description = route.describe
+      route_description[:example] = url
+      route_description
+    end
+
+    def params_description(example:)
       route_params = []
       if primary_route.nil?
         warn "Warning: No routes defined for #{resource_definition.name}##{name}."
@@ -212,7 +240,7 @@ module Praxis
           collect(&:to_sym)
       end
 
-      desc = params.describe
+      desc = params.describe(example: example)
       desc[:type][:attributes].keys.each do |k|
         source = if route_params.include? k
           'url'

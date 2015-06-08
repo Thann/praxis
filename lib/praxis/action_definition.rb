@@ -176,57 +176,63 @@ module Praxis
       @description
     end
 
+    def self.url_description(route:, params_example:, params: )# TODO: what context to use?, context: [r.id])
+      route_description = route.describe
 
-    def describe
-      {}.tap do |hash|
-        hash[:description] = description
-        hash[:name] = name
-        hash[:metadata] = metadata
-        hash[:headers] = headers.describe if headers
-        if params
-          params_example = params.example;
-          hash[:params] = params_description(example: params_example)
-        end
-        if payload
-          payload_example = payload.example;
-          hash[:payload] = payload.describe(example: payload_example)
-        end
-        hash[:responses] = responses.inject({}) do |memo, (response_name, response)|
-          memo[response.name] = response.describe
-          memo
-        end
-        hash[:traits] = traits if traits.any?
-        # FIXME: change to :routes along with api browser
-        hash[:urls] = routes.collect {|route| url_description(route: route, params_example: params_example) }.compact
+      example_hash = params_example ? params_example.dump : {}
+      hash = self.url_example(route: route, example_hash: example_hash, params: params)
 
-        self.class.doc_decorations.each do |callback|
-          callback.call(self, hash)
-        end
-      end
+      query_string = URI.encode_www_form(hash[:query_params])#collect {|(name, value)| "#{name.to_s}=#{value.to_s}"}.join('&')
+      url = hash[:url]
+      url = [url,query_string].join('?') unless query_string.empty?
+
+      route_description[:example] = url
+      route_description
     end
 
-    def url_description(route:, params_example:)# TODO: what context to use?, context: [r.id])
-      return nil unless params_example
-
-      example_hash = params_example.dump
+    def self.url_example(route:, example_hash:{}, params: )# TODO: what context to use?, context: [r.id])
       path_param_keys = route.path.named_captures.keys.collect(&:to_sym)
-      query_param_keys = self.params.attributes.keys - path_param_keys
+
+      param_attributes = params ? params.attributes : {}
+      query_param_keys = param_attributes.keys - path_param_keys
       required_query_param_keys = query_param_keys.each_with_object([]) do |p, array|
-        array << p if self.params.attributes[p].options[:required]
+        array << p if params.attributes[p].options[:required]
       end
 
       path_params = example_hash.select{|k,v| path_param_keys.include? k }
       # Let's generate the example only using required params, to avoid mixing incompatible parameters
       query_params = example_hash.select{|k,v| required_query_param_keys.include? k }
-      # TODO: should we URL encode here or not?...or even, should we just provde the raw attributes so that
-      # the clients of the docs can more easily recreate the request examples in different formats/languages...?
-      query_string = query_params.collect {|(name, value)| "#{name.to_s}=#{value.to_s}"}.join('&')
-      url = route.path.expand(path_params)
-      url = [url,query_string].join('?') unless query_string.empty?
+      example = { verb: route.verb, url: route.path.expand(path_params), query_params: query_params }
+    end
 
-      route_description = route.describe
-      route_description[:example] = url
-      route_description
+    def describe(context: nil)
+      {}.tap do |hash|
+        hash[:description] = description
+        hash[:name] = name
+        hash[:metadata] = metadata
+        if headers
+          headers_example = headers.example(context)
+          hash[:headers] = headers.describe(example: headers_example)
+        end
+        if params
+          params_example = params.example(context);
+          hash[:params] = params_description(example: params_example)
+        end
+        if payload
+          payload_example = payload.example(context);
+          hash[:payload] = payload.describe(example: payload_example)
+        end
+        hash[:responses] = responses.inject({}) do |memo, (response_name, response)|
+          memo[response.name] = response.describe(context: context)
+          memo
+        end
+        hash[:traits] = traits if traits.any?
+        # FIXME: change to :routes along with api browser
+        hash[:urls] = routes.collect {|route| ActionDefinition.url_description(route: route, params: self.params, params_example: params_example) }.compact
+        self.class.doc_decorations.each do |callback|
+          callback.call(self, hash)
+        end
+      end
     end
 
     def params_description(example:)

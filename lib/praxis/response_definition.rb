@@ -55,15 +55,6 @@ module Praxis
       end
     end
 
-    def example(context=nil)
-      return nil if self.media_type.nil?
-      return nil if self.media_type.kind_of?(SimpleMediaType)
-      if context.nil?
-        context = "#{self.media_type.name}-#{self.name}"
-      end
-      self.media_type.example(context)
-    end
-
     def location(loc=nil)
       return @spec[:location] if loc.nil?
       unless ( loc.is_a?(Regexp) || loc.is_a?(String) )
@@ -112,7 +103,7 @@ module Praxis
       end
     end
 
-    def describe
+    def describe( context: )
       location_type = location.is_a?(Regexp) ? :regexp : :string
       location_value = location.is_a?(Regexp) ? location.inspect : location
       content = {
@@ -121,6 +112,13 @@ module Praxis
         :headers => {}
       }
       content[:location] = _describe_header(location) unless location == nil
+
+      unless headers == nil
+        headers.each do |name, value|
+          content[:headers][name] = _describe_header(value)
+        end
+      end
+
       # TODO: Change the mime_type key to media_type!!
       if media_type
         content[:media_type] = if media_type.is_a? Symbol
@@ -130,15 +128,15 @@ module Praxis
         end
       end
 
-      if (media_type_example = self.example)
-        content[:example] = media_type_example.render
-      end
+#      if (media_type_example = self.example(context))
+#        content[:example] = if media_type_example.is_a? Array
+#          media_type_example.collect(&:render)
+#        else
+#          media_type_example.render
+#        end
+#      end
 
-      unless headers == nil
-        headers.each do |name, value|
-          content[:headers][name] = _describe_header(value)
-        end
-      end
+
       unless parts == nil
         content[:parts_like] = parts.describe
       end

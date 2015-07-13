@@ -118,4 +118,15 @@ class Instances < BaseClass
     response.headers['Content-Type'] = 'application/json'
     response
   end
+
+  def nested_hash_test
+    raise "Expected Attributor::Type..." unless request.payload.sub_hash.class < Attributor::Type
+    Praxis::Responses::Ok.new headers: {'Content-Type' => 'text/plain'}
+  end
+
+  def mp_nested_hash_test
+    raise "Expected Attributor::Type..." unless request.payload[0].payload['sub_hash'].class < Attributor::Type
+    Praxis::Responses::Ok.new headers: {'Content-Type' => 'text/plain'}
+  end
+
 end

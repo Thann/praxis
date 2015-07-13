@@ -193,6 +193,27 @@ module ApiResources
       response :ok, media_type: 'application/json'
     end
 
+    action :nested_hash_test do
+      routing {post '/nested_hash_test'}
+      payload do
+        attribute :sub_hash, Hash
+      end
+      response :ok, media_type: 'text/plain'
+    end
+
+    action :mp_nested_hash_test do
+      routing {post '/mp_nested_hash_test'}
+      payload Praxis::Types::MultipartArray do
+        name_type String
+        #payload_type do
+        payload_type Hash do
+          attribute :sub_hash, Hash
+          #key 'sub_hash', Hash
+        end
+      end
+      response :ok, media_type: 'text/plain'
+    end
+
     # OTHER USAGES:
     #   note: these are all hypothetical, pending, brainstorming usages.
 
